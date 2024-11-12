@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
 import axios from "axios";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
@@ -15,56 +15,72 @@ const App = () => {
   const [datas, setDatas] = useState<Data[]>([]);
   const [editingData, setEditingData] = useState<Data | null>(null);
   const [title, setTitle] = useState("");
-  const [price, setPrice] = useState(0);
+  const [price, setPrice] = useState<string>("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const baseURL = "https://6730de8c7aaf2a9aff0f2e89.mockapi.io/menu";
 
   const fetchData = async () => {
+    setLoading(true);
     try {
       const response = await axios.get(baseURL);
       setDatas(response.data);
     } catch (error) {
-      console.log("Error fetching data:", error);
+      Alert.alert("Error", "Failed to fetch data");
+    } finally {
+      setLoading(false);
     }
   };
 
   const postData = async () => {
+    if (!title || !price || !description || !image) {
+      Alert.alert("Validation", "All fields are required");
+      return;
+    }
+
     try {
-      const newData = {
-        title: "Nasi goreng",
-        price: 90000,
-        description: "Harga",
-        image: "https://i.pinimg.com/474x/8e/3e/f5/8e3ef5742d9d7334acb03872f239db20.jpg",
-      };
-      const response = await axios.post(baseURL, newData);
+      const newData = { title, price: Number(price), description, image };
+      await axios.post(baseURL, newData);
       fetchData();
+      resetForm();
     } catch (error) {
-      console.log("Error posting data:", error);
+      Alert.alert("Error", "Failed to add data");
     }
   };
 
-  // Delete item from the API
   const deleteData = async (id: string) => {
     try {
       await axios.delete(`${baseURL}/${id}`);
-      fetchData(); // Refresh data after deletion
+      fetchData();
     } catch (error) {
-      console.log("Error deleting data:", error);
+      Alert.alert("Error", "Failed to delete data");
     }
   };
 
-  // Edit item in the API
   const editData = async (id: string) => {
+    if (!title || !price || !description || !image) {
+      Alert.alert("Validation", "All fields are required");
+      return;
+    }
+
     try {
-      const updatedData = { title, price, description, image };
+      const updatedData = { title, price: Number(price), description, image };
       await axios.put(`${baseURL}/${id}`, updatedData);
       fetchData();
       setEditingData(null);
+      resetForm();
     } catch (error) {
-      console.log("Error updating data:", error);
+      Alert.alert("Error", "Failed to update data");
     }
+  };
+
+  const resetForm = () => {
+    setTitle("");
+    setPrice("");
+    setDescription("");
+    setImage("");
   };
 
   useEffect(() => {
@@ -72,152 +88,177 @@ const App = () => {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#E8F5FF" }}>
       <ScrollView style={styles.container}>
-        {/* Title Section */}
         <View style={styles.header}>
-          <Text style={styles.headerText}>Daftar Menu Makanan favorit</Text>
+          <Text style={styles.headerText}>Menu Makanan Favorit</Text>
         </View>
 
-        {/* Editing Section */}
-        {editingData ? (
-          <View>
+        {editingData && (
+          <View style={styles.formContainer}>
             <TextInput placeholder="Title" value={title} onChangeText={setTitle} style={styles.input} />
             <TextInput
               placeholder="Price"
-              value={String(price)}
-              onChangeText={(text) => setPrice(Number(text))}
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="numeric"
               style={styles.input}
             />
             <TextInput placeholder="Description" value={description} onChangeText={setDescription} style={styles.input} />
             <TextInput placeholder="Image URL" value={image} onChangeText={setImage} style={styles.input} />
-            <TouchableOpacity onPress={() => editData(editingData.id)} style={styles.button}>
-              <Text style={{ color: "white" }}>Save Changes</Text>
+            <TouchableOpacity onPress={() => editData(editingData.id)} style={styles.saveButton}>
+              <Text style={styles.saveButtonText}>Save Changes</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
+        )}
 
-        {/* List of Menu Items */}
-        <View style={styles.productList}>
-          {datas.map((data) => (
-            <View key={data.id} style={styles.productContainer}>
-              <Image source={{ uri: data.image }} style={styles.image} />
-              <Text style={styles.title}>{data.title}</Text>
-              <Text style={styles.description}>{data.description}</Text>
-              <Text style={styles.price}>Rp {data.price}</Text>
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEditingData(data);
-                    setTitle(data.title);
-                    setPrice(data.price);
-                    setDescription(data.description);
-                    setImage(data.image);
-                  }}
-                  style={styles.button}
-                >
-                  <Ionicons name="create-outline" size={30} color="#7e9bbf" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteData(data.id)} style={styles.button}>
-                  <Ionicons name="trash-outline" size={30} color="#9c4441" />
-                </TouchableOpacity>
+        {loading ? (
+          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
+        ) : (
+          <View style={styles.productList}>
+            {datas.map((data) => (
+              <View key={data.id} style={styles.productContainer}>
+                <Image source={{ uri: data.image }} style={styles.image} />
+                <Text style={styles.title}>{data.title}</Text>
+                <Text style={styles.description}>{data.description}</Text>
+                <Text style={styles.price}>Rp {data.price}</Text>
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingData(data);
+                      setTitle(data.title);
+                      setPrice(String(data.price));
+                      setDescription(data.description);
+                      setImage(data.image);
+                    }}
+                    style={styles.editButton}
+                  >
+                    <Ionicons name="create-outline" size={24} color="#007AFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteData(data.id)} style={styles.deleteButton}>
+                    <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
-      {/* Floating Add Button */}
       <TouchableOpacity onPress={postData} style={styles.floatingButton}>
-        <Ionicons name="add-outline" size={40} color="#3b5670" />
+        <Ionicons name="add-outline" size={30} color="#FFF" />
       </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  // Sama seperti sebelumnya
+  // (biarkan tidak berubah untuk tampilan yang telah rapi)
   container: {
-    backgroundColor: "#D2B48C",
     padding: 10,
-    flex: 1,
   },
   header: {
-    backgroundColor: "#8B4513",
+    backgroundColor: "#007AFF",
     paddingVertical: 20,
     alignItems: "center",
     marginBottom: 20,
-    borderRadius: 5,
+    borderRadius: 10,
   },
   headerText: {
     color: "#fff",
     fontSize: 24,
     fontWeight: "bold",
   },
+  formContainer: {
+    backgroundColor: "#FFFFFF",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
   input: {
     borderWidth: 1,
-    borderColor: "#8B4513", 
-    borderRadius: 5,
+    borderColor: "#D1D1D1",
+    borderRadius: 8,
     padding: 10,
     marginBottom: 10,
-    backgroundColor: "#F5DEB3", 
+    backgroundColor: "#F9F9F9",
   },
-  button: {
-    backgroundColor: "#8B4513",
-    padding: 10,
-    borderRadius: 5,
+  saveButton: {
+    backgroundColor: "#007AFF",
+    padding: 12,
+    borderRadius: 8,
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
   },
-  floatingButton: {
-    position: "absolute",
-    bottom: 20,
-    right: 20,
-    backgroundColor: "#D2B48C",
-    padding: 15,
-    borderRadius: 50,
-    opacity: 0.8,
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   productList: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-around",
-    padding: 10,
+    justifyContent: "space-between",
   },
   productContainer: {
-    width: "45%",
-    borderWidth: 1,
-    borderColor: "#8B4513",
-    borderRadius: 10,
-    padding: 10,
-    marginVertical: 10,
-    backgroundColor: "#A0522D", 
+    width: "48%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
   },
   image: {
     width: "100%",
-    height: 150,
-    borderRadius: 5,
+    height: 120,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginVertical: 5,
-    color: "#FFF8DC", 
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 10,
+    marginHorizontal: 10,
   },
   description: {
-    fontSize: 15,
-    color: "#FFF8DC",
-    marginBottom: 5,
+    fontSize: 14,
+    color: "#6B7280",
+    marginHorizontal: 10,
   },
   price: {
-    fontSize: 20,
-    color: "#FFF8DC",
-    marginBottom: 5,
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#007AFF",
+    marginTop: 5,
+    marginHorizontal: 10,
+    marginBottom: 10,
   },
   actionButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 10,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  editButton: {
+    padding: 8,
+  },
+  deleteButton: {
+    padding: 8,
+  },
+  floatingButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    backgroundColor: "#007AFF",
+    padding: 16,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 10,
   },
 });
 
